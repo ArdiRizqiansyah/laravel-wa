@@ -168,7 +168,7 @@
                             <span>Send Message</span>
                         </h2>
 
-                        <form method="POST" action="/whatsapp/send" class="space-y-5 flex-1 flex flex-col justify-between">
+                        <form method="POST" action="/whatsapp/send" enctype="multipart/form-data" class="space-y-5 flex-1 flex flex-col justify-between">
                             @csrf
                             <div class="space-y-4">
                                 <!-- Phone -->
@@ -183,11 +183,20 @@
                                     <p class="mt-1.5 text-xs text-slate-500">Include country code without spaces, plus sign, or leading zeroes (e.g. 628123456789 for Indonesia, 14155552671 for US).</p>
                                 </div>
 
+                                <!-- Attachment -->
+                                <div>
+                                    <label for="attachment" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Attachment (Optional)</label>
+                                    <div class="mt-1.5">
+                                        <input type="file" name="attachment" id="attachment" class="block w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-2.5 text-slate-400 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/80 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600/10 file:text-emerald-400 hover:file:bg-emerald-600/20 cursor-pointer">
+                                    </div>
+                                    <p class="mt-1.5 text-xs text-slate-500">Supports images, videos, audio, or documents (PDF, Excel, Word) up to 15MB.</p>
+                                </div>
+
                                 <!-- Message Body -->
                                 <div class="flex-1">
-                                    <label for="message" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Message Body</label>
+                                    <label for="message" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Message Body / Caption</label>
                                     <div class="mt-1.5">
-                                        <textarea id="message" name="message" rows="5" required class="block w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/80 sm:text-sm" placeholder="Type your WhatsApp message here..."></textarea>
+                                        <textarea id="message" name="message" rows="4" class="block w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/80 sm:text-sm" placeholder="Type your WhatsApp message or file caption here..."></textarea>
                                     </div>
                                 </div>
                             </div>

@@ -198,14 +198,45 @@ class WhatsAppController extends Controller
     {
         $request->validate([
             'phone' => 'required|string',
-            'message' => 'required|string',
+            'message' => 'required_without:attachment|nullable|string',
+            'attachment' => 'nullable|file|max:15360', // 15MB limit
         ]);
 
         $to = $request->input('phone');
         $body = $request->input('message');
 
         try {
-            WhatsApp::web('main')->messages()->sendText($to, $body);
+            $session = WhatsApp::web('main');
+
+            if ($request->hasFile('attachment')) {
+                $file = $request->file('attachment');
+                $mimeType = $file->getMimeType();
+                $filename = $file->getClientOriginalName();
+                $base64 = base64_encode(file_get_contents($file->path()));
+
+                $payload = [
+                    'base64' => $base64,
+                    'mimeType' => $mimeType,
+                    'filename' => $filename,
+                ];
+
+                if (!empty($body)) {
+                    $payload['caption'] = $body;
+                }
+
+                if (str_starts_with($mimeType, 'image/')) {
+                    $session->messages()->sendImage($to, $payload);
+                } elseif (str_starts_with($mimeType, 'video/')) {
+                    $session->messages()->sendVideo($to, $payload);
+                } elseif (str_starts_with($mimeType, 'audio/')) {
+                    $session->messages()->sendAudio($to, $payload);
+                } else {
+                    $session->messages()->sendDocument($to, $payload);
+                }
+            } else {
+                $session->messages()->sendText($to, $body);
+            }
+
             return back()->with('success', 'Message sent successfully!');
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to send message: ' . $e->getMessage());
