@@ -14,10 +14,11 @@ class WhatsAppController extends Controller
      */
     public function index(SidecarManager $manager)
     {
-        $sidecarRunning = $manager->isRunning();
+        $sidecarRunning = $this->isSidecarRunning($manager);
         $sessionStatus = 'disconnected';
         $qrCode = null;
         $info = null;
+        $groups = [];
         $error = null;
 
         if ($sidecarRunning) {
@@ -37,7 +38,14 @@ class WhatsAppController extends Controller
                     try {
                         $info = $session->info();
                     } catch (\Exception $e) {
-                        // Info details not available yet
+                        // Info not available yet
+                    }
+                    if ($sessionStatus === 'ready') {
+                        try {
+                            $groups = $session->groups()->all();
+                        } catch (\Exception $e) {
+                            $groups = []; // Groups not available yet, silently skip
+                        }
                     }
                 }
             } catch (SidecarException $e) {
@@ -53,18 +61,23 @@ class WhatsAppController extends Controller
             }
         }
 
-        return view('whatsapp.dashboard', compact('sidecarRunning', 'sessionStatus', 'qrCode', 'info', 'error'));
+        return view('whatsapp.dashboard', compact('sidecarRunning', 'sessionStatus', 'qrCode', 'info', 'error', 'groups'));
     }
 
     /**
      * Get the sidecar and session status in JSON format.
      */
-    public function status(SidecarManager $manager)
+    public function status(Request $request, SidecarManager $manager)
     {
-        $sidecarRunning = $manager->isRunning();
+        if ($request->hasSession()) {
+            $request->session()->reflash();
+        }
+
+        $sidecarRunning = $this->isSidecarRunning($manager);
         $sessionStatus = 'disconnected';
         $qrCode = null;
         $info = null;
+        $groups = [];
         $error = null;
 
         if ($sidecarRunning) {
@@ -84,7 +97,14 @@ class WhatsAppController extends Controller
                     try {
                         $info = $session->info();
                     } catch (\Exception $e) {
-                        // Info details not available yet
+                        // Info not available yet
+                    }
+                    if ($sessionStatus === 'ready') {
+                        try {
+                            $groups = $session->groups()->all();
+                        } catch (\Exception $e) {
+                            $groups = []; // Groups not available yet, silently skip
+                        }
                     }
                 }
             } catch (SidecarException $e) {
@@ -105,6 +125,7 @@ class WhatsAppController extends Controller
             'sessionStatus' => $sessionStatus,
             'qrCode' => $qrCode,
             'info' => $info,
+            'groups' => $groups,
             'error' => $error,
         ]);
     }
@@ -115,37 +136,7 @@ class WhatsAppController extends Controller
     public function startSidecar(SidecarManager $manager)
     {
         try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $node = config('laravel-whatsapp.web.sidecar.node_binary', 'node');
-                $entry = config('laravel-whatsapp.web.sidecar.path') . DIRECTORY_SEPARATOR . 'index.js';
-                
-                // Quote paths to handle spaces on Windows
-                $cmd = sprintf('start /B "" "%s" "%s"', $node, $entry);
-                
-                // Set environment variables for the process
-                putenv("PORT=" . config('laravel-whatsapp.web.port', 3000));
-                putenv("HOST=" . config('laravel-whatsapp.web.host', '127.0.0.1'));
-                putenv("SIDECAR_TOKEN=" . config('laravel-whatsapp.web.token'));
-                putenv("SESSION_DIR=" . config('laravel-whatsapp.web.sidecar.session_dir'));
-                putenv("SIDECAR_PID_FILE=" . config('laravel-whatsapp.web.sidecar.pid_file'));
-                putenv("AUTO_START_SESSIONS=" . (config('laravel-whatsapp.web.sidecar.auto_start_sessions', true) ? 'true' : 'false'));
-                
-                $handle = popen($cmd, "r");
-                if ($handle) {
-                    pclose($handle);
-                }
-                
-                // Wait up to 2 seconds for the PID file to be written by Node
-                $pidFile = config('laravel-whatsapp.web.sidecar.pid_file');
-                for ($i = 0; $i < 20; $i++) {
-                    usleep(100000);
-                    if (is_file($pidFile)) {
-                        break;
-                    }
-                }
-            } else {
-                $manager->start();
-            }
+            $manager->start();
             return back()->with('success', 'WhatsApp sidecar server started successfully.');
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to start sidecar: ' . $e->getMessage());
@@ -197,25 +188,33 @@ class WhatsAppController extends Controller
     public function sendMessage(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string',
-            'message' => 'required_without:attachment|nullable|string',
+            'phone'      => 'required|string|min:1',
+            'message'    => 'nullable|string',
             'attachment' => 'nullable|file|max:15360', // 15MB limit
         ]);
 
-        $to = $request->input('phone');
-        $body = $request->input('message');
+        $to   = trim($request->input('phone'));
+        $body = $request->input('message', '');
+
+        if (empty($to)) {
+            return back()->withErrors(['phone' => 'Nomor tujuan atau grup tidak boleh kosong.'])->withInput();
+        }
+
+        if (empty($body) && !$request->hasFile('attachment')) {
+            return back()->withErrors(['message' => 'Pesan atau lampiran harus diisi.'])->withInput();
+        }
 
         try {
             $session = WhatsApp::web('main');
 
             if ($request->hasFile('attachment')) {
-                $file = $request->file('attachment');
+                $file     = $request->file('attachment');
                 $mimeType = $file->getMimeType();
                 $filename = $file->getClientOriginalName();
-                $base64 = base64_encode(file_get_contents($file->path()));
+                $base64   = base64_encode(file_get_contents($file->path()));
 
                 $payload = [
-                    'base64' => $base64,
+                    'base64'   => $base64,
                     'mimeType' => $mimeType,
                     'filename' => $filename,
                 ];
@@ -237,9 +236,35 @@ class WhatsAppController extends Controller
                 $session->messages()->sendText($to, $body);
             }
 
-            return back()->with('success', 'Message sent successfully!');
+            return back()->with('success', 'Pesan berhasil dikirim!');
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to send message: ' . $e->getMessage());
+            return back()->with('error', 'Gagal mengirim pesan: ' . $e->getMessage())->withInput();
         }
+    }
+
+    /**
+     * Check if the sidecar service is running, with a socket fallback for Windows systems
+     * where tasklist/process lookup permissions may be restricted.
+     */
+    protected function isSidecarRunning(SidecarManager $manager): bool
+    {
+        if ($manager->isRunning()) {
+            return true;
+        }
+
+        $connection = @fsockopen(
+            config('laravel-whatsapp.web.host', '127.0.0.1'),
+            (int) config('laravel-whatsapp.web.port', 3000),
+            $errno,
+            $errstr,
+            0.15
+        );
+
+        if (is_resource($connection)) {
+            fclose($connection);
+            return true;
+        }
+
+        return false;
     }
 }

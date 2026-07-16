@@ -71,6 +71,22 @@
                         <span>{{ session('error') }}</span>
                     </div>
                 @endif
+
+                @if ($errors->any())
+                    <div class="alert-error p-4 rounded-xl border border-rose-500/20 bg-rose-950/20 text-rose-400 flex items-start space-x-3 transition duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mt-0.5 shrink-0">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                        </svg>
+                        <div>
+                            <p class="font-semibold">Gagal mengirim pesan:</p>
+                            <ul class="mt-1 list-disc list-inside text-sm">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -171,16 +187,55 @@
                         <form method="POST" action="/whatsapp/send" enctype="multipart/form-data" class="space-y-5 flex-1 flex flex-col justify-between">
                             @csrf
                             <div class="space-y-4">
-                                <!-- Phone -->
+                                <!-- Hidden Real Recipient Input -->
+                                <input type="hidden" name="phone" id="real-phone-input" required>
+
+                                <!-- Recipient Type Selection -->
                                 <div>
-                                    <label for="phone" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Receiver Phone Number</label>
+                                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Send To</label>
+                                    <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+                                        <button type="button" id="type-personal-btn" class="py-2 px-3 text-xs font-semibold rounded-lg bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 transition-all duration-200 cursor-pointer">
+                                            Personal Contact
+                                        </button>
+                                        <button type="button" id="type-group-btn" class="py-2 px-3 text-xs font-semibold rounded-lg bg-transparent text-slate-400 hover:text-slate-200 border border-transparent transition-all duration-200 cursor-pointer">
+                                            WhatsApp Group
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Personal Input Container -->
+                                <div id="personal-input-container">
+                                    <label for="phone_personal" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Receiver Phone Number</label>
                                     <div class="mt-1.5 relative rounded-xl shadow-sm">
                                         <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
                                             <span class="text-slate-500 sm:text-sm">+</span>
                                         </div>
-                                        <input type="text" name="phone" id="phone" required class="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-3 pl-8 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/80 sm:text-sm" placeholder="628123456789">
+                                        <input type="text" id="phone_personal" class="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-3 pl-8 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/80 sm:text-sm" placeholder="628123456789">
                                     </div>
                                     <p class="mt-1.5 text-xs text-slate-500">Include country code without spaces, plus sign, or leading zeroes (e.g. 628123456789 for Indonesia, 14155552671 for US).</p>
+                                </div>
+
+                                <!-- Group Input Container -->
+                                <div id="group-input-container" class="hidden">
+                                    <label for="group_id" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Select WhatsApp Group</label>
+                                    <div class="mt-1.5 relative rounded-xl shadow-sm">
+                                        <select id="group_id" class="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-3 pl-4 pr-10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/80 sm:text-sm appearance-none cursor-pointer">
+                                            @if(!empty($groups))
+                                                <option value="">-- Choose Group --</option>
+                                                @foreach($groups as $group)
+                                                    <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+                                                @endforeach
+                                            @else
+                                                <option value="">No groups available (connect WA first)</option>
+                                            @endif
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-slate-500">
+                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <p class="mt-1.5 text-xs text-slate-500">Only groups that your WhatsApp account is currently a member of will be listed.</p>
                                 </div>
 
                                 <!-- Attachment -->
@@ -243,6 +298,73 @@
 
             const sendMsgBtn = document.getElementById('send-msg-btn');
 
+            // Receiver Selector Elements
+            const typePersonalBtn = document.getElementById('type-personal-btn');
+            const typeGroupBtn = document.getElementById('type-group-btn');
+            const personalInputContainer = document.getElementById('personal-input-container');
+            const groupInputContainer = document.getElementById('group-input-container');
+            const phonePersonal = document.getElementById('phone_personal');
+            const groupId = document.getElementById('group_id');
+            const realPhoneInput = document.getElementById('real-phone-input');
+            const form = document.querySelector('form[action="/whatsapp/send"]');
+
+            let currentRecipientType = 'personal'; // 'personal' or 'group'
+            let cachedGroups = [];
+
+            // Switch to Personal Input
+            function switchToPersonal() {
+                currentRecipientType = 'personal';
+                typePersonalBtn.className = "py-2 px-3 text-xs font-semibold rounded-lg bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 transition-all duration-200 cursor-pointer";
+                typeGroupBtn.className = "py-2 px-3 text-xs font-semibold rounded-lg bg-transparent text-slate-400 hover:text-slate-200 border border-transparent transition-all duration-200 cursor-pointer";
+                
+                personalInputContainer.classList.remove('hidden');
+                groupInputContainer.classList.add('hidden');
+                
+                phonePersonal.required = true;
+                groupId.required = false;
+                
+                updateRealPhone();
+            }
+
+            // Switch to Group Input
+            function switchToGroup() {
+                currentRecipientType = 'group';
+                typeGroupBtn.className = "py-2 px-3 text-xs font-semibold rounded-lg bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 transition-all duration-200 cursor-pointer";
+                typePersonalBtn.className = "py-2 px-3 text-xs font-semibold rounded-lg bg-transparent text-slate-400 hover:text-slate-200 border border-transparent transition-all duration-200 cursor-pointer";
+                
+                groupInputContainer.classList.remove('hidden');
+                personalInputContainer.classList.add('hidden');
+                
+                groupId.required = true;
+                phonePersonal.required = false;
+                
+                updateRealPhone();
+            }
+
+            typePersonalBtn.addEventListener('click', switchToPersonal);
+            typeGroupBtn.addEventListener('click', switchToGroup);
+
+            // Synchronize selected values with hidden target input
+            function updateRealPhone() {
+                if (currentRecipientType === 'personal') {
+                    realPhoneInput.value = phonePersonal.value.trim();
+                } else {
+                    realPhoneInput.value = groupId.value;
+                }
+            }
+
+            phonePersonal.addEventListener('input', updateRealPhone);
+            groupId.addEventListener('change', updateRealPhone);
+
+            // Populate hidden input before submitting form
+            form.addEventListener('submit', function (e) {
+                updateRealPhone();
+                if (!realPhoneInput.value) {
+                    e.preventDefault();
+                    alert("Please select a group or enter a phone number.");
+                }
+            });
+
             // Fade out flash messages after 5 seconds
             const alerts = document.querySelectorAll('.alert-success, .alert-error');
             alerts.forEach(function (alert) {
@@ -273,6 +395,9 @@
                         sessionCard.classList.add('hidden');
                         qrCard.classList.add('hidden');
                         updateSendButton(false, "Server Offline");
+
+                        cachedGroups = [];
+                        groupId.innerHTML = '<option value="">No groups available (connect WA first)</option>';
                     } else {
                         // Online
                         sidecarBadge.className = "inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20 animate-pulse";
@@ -301,6 +426,9 @@
                             connectedContainer.classList.add('hidden');
                             
                             updateSendButton(false, "WhatsApp Disconnected");
+
+                            cachedGroups = [];
+                            groupId.innerHTML = '<option value="">No groups available (connect WA first)</option>';
                         } else {
                             sessionStartForm.classList.add('hidden');
                             sessionDestroyForm.classList.remove('hidden');
@@ -312,6 +440,9 @@
                                 loadingText.textContent = "Booting session...";
                                 connectedContainer.classList.add('hidden');
                                 updateSendButton(false, "WhatsApp Initializing");
+
+                                cachedGroups = [];
+                                groupId.innerHTML = '<option value="">No groups available (connect WA first)</option>';
                             } else if (status === 'qr') {
                                 sessionStatusDetail.className = "text-sm font-bold text-yellow-500 mt-0.5 capitalize";
                                 sessionLoading.classList.add('hidden');
@@ -325,6 +456,9 @@
                                     loadingText.textContent = "Generating QR Code...";
                                 }
                                 updateSendButton(false, "Scan QR Code to Send");
+
+                                cachedGroups = [];
+                                groupId.innerHTML = '<option value="">No groups available (connect WA first)</option>';
                             } else if (status === 'authenticated') {
                                 sessionStatusDetail.className = "text-sm font-bold text-emerald-500 mt-0.5 capitalize animate-pulse";
                                 qrContainer.classList.add('hidden');
@@ -332,6 +466,9 @@
                                 loadingText.textContent = "Authenticated, loading chats...";
                                 connectedContainer.classList.add('hidden');
                                 updateSendButton(false, "Finalizing Connection");
+
+                                cachedGroups = [];
+                                groupId.innerHTML = '<option value="">No groups available (connect WA first)</option>';
                             } else if (status === 'ready') {
                                 sessionStatusDetail.className = "text-sm font-bold text-emerald-500 mt-0.5 capitalize";
                                 qrContainer.classList.add('hidden');
@@ -344,12 +481,41 @@
                                 connectedName.textContent = userName;
 
                                 updateSendButton(true);
+
+                                // Populate groups dynamically
+                                if (data.groups && data.groups.length > 0) {
+                                    const groupsStr = JSON.stringify(data.groups);
+                                    if (JSON.stringify(cachedGroups) !== groupsStr) {
+                                        cachedGroups = data.groups;
+                                        const currentSelected = groupId.value;
+
+                                        groupId.innerHTML = '<option value="">-- Choose Group --</option>';
+                                        data.groups.forEach(group => {
+                                            const option = document.createElement('option');
+                                            option.value = group.id;
+                                            option.textContent = group.name;
+                                            groupId.appendChild(option);
+                                        });
+
+                                        if (currentSelected && data.groups.some(g => g.id === currentSelected)) {
+                                            groupId.value = currentSelected;
+                                        }
+                                        updateRealPhone();
+                                    }
+                                } else if (data.groups) {
+                                    cachedGroups = [];
+                                    groupId.innerHTML = '<option value="">No groups found on this account</option>';
+                                    updateRealPhone();
+                                }
                             } else {
                                 sessionStatusDetail.className = "text-sm font-bold text-rose-500 mt-0.5 capitalize";
                                 qrContainer.classList.add('hidden');
                                 sessionLoading.classList.add('hidden');
                                 connectedContainer.classList.add('hidden');
                                 updateSendButton(false, `Status: ${status}`);
+
+                                cachedGroups = [];
+                                groupId.innerHTML = '<option value="">No groups available (connect WA first)</option>';
                             }
                         }
                     }
@@ -369,6 +535,9 @@
                     sendMsgBtn.className = "w-full inline-flex items-center justify-center rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-500 shadow-sm border border-slate-700 cursor-not-allowed transition-all duration-300";
                 }
             }
+
+            // Initialize
+            switchToPersonal();
 
             // Run initial poll and schedule interval
             pollStatus();
